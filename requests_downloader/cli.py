@@ -65,6 +65,8 @@ def main():
             else:
                 response = int(response)
                 break
+    else:
+        response = url_idx
 
     url = urls[response][1]
     downloader.download(
