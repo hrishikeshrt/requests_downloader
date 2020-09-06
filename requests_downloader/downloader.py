@@ -61,7 +61,8 @@ def handle_url(url):
         )
             for url in urls
             if (not url['href'].endswith(content_name) and
-                not url.endswith('/'))
+                not url['href'].endswith('/') and
+                url.get_text().find("View Contents") == -1)
         ]
         return dl_urls, 0
 
@@ -84,7 +85,7 @@ def handle_url(url):
 
 def download(url, download_dir='', download_file=None, download_path=None,
              headers={}, session=None, block_size=1024, timeout=60,
-             resume=True, show_progress=True, checksum=None,
+             resume=True, show_progress=True, checksum=None, smart=True,
              url_handler=None):
     """
     Download a file
@@ -131,6 +132,9 @@ def download(url, download_dir='', download_file=None, download_path=None,
         Value of md5 checksum of the file to be downloaded.
         If provided, the downloaded file will be verified using the checksum.
         The default is None.
+    smart : bool, optional
+        Use url_handler for special case URLs
+        The default is True.
     url_handler : function, optional
         Handler function for special cases of download URLs
         The function should return a list of (TAG, URL) pairs and default index
@@ -147,97 +151,97 @@ def download(url, download_dir='', download_file=None, download_path=None,
         Indicates whether the function completed without any errors
     """
 
-    try:
+    success = True
+    if smart:
         if url_handler is None:
             url_handler = handle_url
         urls, url_idx = url_handler(url)
         url = urls[url_idx][1]
 
-        request_maker = requests if session is None else session
+    request_maker = requests if session is None else session
 
-        r = request_maker.head(url, headers=headers, timeout=timeout)
+    r = request_maker.head(url, headers=headers, timeout=timeout)
 
-        resume_supported = r.headers.get('accept-ranges') == 'bytes'
-        file_mode = 'ab' if resume_supported else 'wb'
+    resume_supported = r.headers.get('accept-ranges') == 'bytes'
+    file_mode = 'ab' if resume_supported else 'wb'
 
-        r = request_maker.get(
-            url, headers=headers, timeout=timeout, stream=True
-        )
+    r = request_maker.get(
+        url, headers=headers, timeout=timeout, stream=True
+    )
 
-        content_length = int(r.headers.get('content-length', 0))
-        logging.debug(f"Content-Length: {content_length}")
+    content_length = int(r.headers.get('content-length', 0))
+    logging.debug(f"Content-Length: {content_length}")
 
-        content_type = r.headers.get('content-type')
-        extension_guess = mimetypes.guess_extension(content_type)
-        logging.debug(f"Content-Type: {content_type}")
+    content_type = r.headers.get('content-type')
+    extension_guess = mimetypes.guess_extension(content_type)
+    logging.debug(f"Content-Type: {content_type}")
 
-        visible_name = r.url.split('/')[-1]
-        if not visible_name.endswith(extension_guess):
-            visible_name += f'.{extension_guess}'
+    visible_name = r.url.split('/')[-1]
+    if extension_guess and not visible_name.endswith(extension_guess):
+        visible_name += f'.{extension_guess}'
 
-        provided_name = None
-        cd = r.headers.get('content-disposition', None)
-        if cd is not None:
-            provided_names = re.findall('filename="(.+)"', cd)
-            if provided_names:
-                provided_name = provided_names[0]
+    provided_name = None
+    cd = r.headers.get('content-disposition', None)
+    if cd is not None:
+        provided_names = re.findall('filename="(.+)"', cd)
+        if provided_names:
+            provided_name = provided_names[0]
 
-        if not download_file:
-            download_file = provided_name if provided_name else visible_name
+    if not download_file:
+        download_file = provided_name if provided_name else visible_name
 
-        if not download_path:
-            download_path = os.path.join(download_dir, download_file)
-        else:
-            download_file = os.path.basename(download_path)
+    if not download_path:
+        download_path = os.path.join(download_dir, download_file)
+    else:
+        download_file = os.path.basename(download_path)
 
-        wrote = 0
-        with open(download_path, file_mode) as f:
-            position = f.tell()
-            if resume and resume_supported:
-                if position == content_length:
-                    logging.info(
-                        f"File '{download_file}' is already downloaded!"
-                    )
-                    return True
-
-                if position:
-                    headers['Range'] = f'bytes={position}-'
-                    logging.info(f"Resumed '{download_file}' from {position}")
-
-                r = request_maker.get(
-                    url, headers=headers, timeout=timeout, stream=True
+    wrote = 0
+    with open(download_path, file_mode) as f:
+        position = f.tell()
+        if resume and resume_supported:
+            if position == content_length:
+                logging.info(
+                    f"File '{download_file}' is already downloaded!"
                 )
+                return True
 
-            with tqdm(
-                initial=position,
-                total=content_length,
-                unit='B',
-                unit_scale=True,
-                disable=not show_progress
-            ) as t:
-                for data in r.iter_content(block_size):
-                    wrote += f.write(data)
-                    t.update(len(data))
+            if position:
+                headers['Range'] = f'bytes={position}-'
+                logging.info(f"Resumed '{download_file}' from {position}")
 
-        if not content_length == 0 and not position + wrote == content_length:
-            logging.warning(f"Inconsistency in download from '{url}'.")
-            raise RuntimeWarning(
-                f"Wrote {wrote} bytes out of {content_length - position}."
+            r = request_maker.get(
+                url, headers=headers, timeout=timeout, stream=True
             )
 
-        if checksum:
-            download_checksum = md5sum(download_path)
-            if download_checksum != checksum:
-                logging.warning("Invalid checksum.")
-                raise RuntimeWarning(
-                    f"Invalid checksum ({download_file}: {download_checksum})."
-                )
+        with tqdm(
+            initial=position,
+            total=content_length,
+            unit='B',
+            unit_scale=True,
+            disable=not show_progress
+        ) as t:
+            for data in r.iter_content(block_size):
+                wrote += f.write(data)
+                t.update(len(data))
 
-        logging.info(f"Succssfully downloaded '{download_file}' from '{url}'.")
-    except Exception as e:
-        logging.error(e)
-        return False
-    return True
+    if not content_length == 0 and not position + wrote == content_length:
+        logging.warning(f"Inconsistency in download from '{url}'.")
+        raise RuntimeWarning(
+            f"Wrote {wrote} bytes out of {content_length - position}."
+        )
+        success = False
+
+    if checksum:
+        download_checksum = md5sum(download_path)
+        if download_checksum != checksum:
+            logging.warning("Invalid checksum.")
+            raise RuntimeWarning(
+                f"Invalid checksum ({download_file}: {download_checksum})."
+            )
+            success = False
+
+    logging.info(f"Succssfully downloaded '{download_file}' from '{url}'.")
+    return success
 
 ###############################################################################
 

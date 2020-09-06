@@ -45,25 +45,24 @@ def main():
     args = vars(parser.parse_args())
     urls, url_idx = downloader.handle_url(args['url'])
     if len(urls) > 1:
-        options = [f'{"0":>3}. All']
-        options.extend([
+        options = [
             f'{idx+1:>3}. {s} {u}' for idx, (s, u) in enumerate(urls)
-        ])
+        ]
         print('\n'.join(options))
-        valid_responses = [str(i) for i in range(len(options))]
+        valid_responses = [str(i+1) for i in range(len(options))]
         while True:
-            response = input(f'Please choose which file to download: (default: {url_idx})')
+            response = input(f'Please choose which file to download (default: {url_idx + 1}): ')
             if not response:
                 response = url_idx
                 break
 
             if response not in valid_responses:
                 print(
-                    f"Please enter a value between 0 to {len(options)-1}."
+                    f"Please enter a value between 1 to {len(options)}."
                 )
                 continue
             else:
-                response = int(response)
+                response = int(response) - 1
                 break
     else:
         response = url_idx
@@ -78,7 +77,8 @@ def main():
         timeout=float(args['timeout']),
         resume=args['resume'],
         show_progress=args['progress'],
-        checksum=args['checksum']
+        smart=False,
+        checksum=args['checksum'],
     )
 
     return 0
