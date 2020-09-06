@@ -42,8 +42,8 @@ def main():
     parser.add_argument('--checksum',
                         help='Checksum to verify integrity of the download',
                         default=None)
-    args = parser.parse_args()
-    urls = downloader.handle_url(args['url'])
+    args = vars(parser.parse_args())
+    urls, url_idx = downloader.handle_url(args['url'])
     if len(urls) > 1:
         options = [f'{"0":>3}. All']
         options.extend([
@@ -52,28 +52,32 @@ def main():
         print('\n'.join(options))
         valid_responses = [str(i) for i in range(len(options))]
         while True:
-            response = input('Please choose which file to download: ')
+            response = input(f'Please choose which file to download: (default: {url_idx})')
+            if not response:
+                response = url_idx
+                break
+
             if response not in valid_responses:
                 print(
                     f"Please enter a value between 0 to {len(options)-1}."
                 )
                 continue
-        response = int(response)
-        if response > 0:
-            urls = [urls[response]]
+            else:
+                response = int(response)
+                break
 
-    for source, url in urls:
-        downloader.download(
-            url,
-            download_dir=args['download_dir'],
-            download_file=args['download_file'],
-            download_path=args['download_path'],
-            block_size=int(args['block']),
-            timeout=float(args['timeout']),
-            resume=args['resume'],
-            show_progress=args['progress'],
-            checksum=args['checksum']
-        )
+    url = urls[response][1]
+    downloader.download(
+        url,
+        download_dir=args['download_dir'],
+        download_file=args['download_file'],
+        download_path=args['download_path'],
+        block_size=int(args['block']),
+        timeout=float(args['timeout']),
+        resume=args['resume'],
+        show_progress=args['progress'],
+        checksum=args['checksum']
+    )
 
     return 0
 

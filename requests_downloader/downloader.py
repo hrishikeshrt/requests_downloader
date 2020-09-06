@@ -33,6 +33,8 @@ def handle_url(url):
     -------
     urls : list
         List of inferred download URLs from the provided URL.
+    default: int
+        Index of default URL to download.
     """
     drive = 'https://drive.google.com'
     drive_pattern = rf'{drive}/file/d/([^\/]*)/.*'
@@ -40,7 +42,7 @@ def handle_url(url):
     if drive_match:
         file_id = drive_match.group(1)
         dl_url = f'{drive}/u/0/uc?id={file_id}&export=download'
-        return [('drive', dl_url)]
+        return [('drive', dl_url)], 0
 
     archive = 'https://archive.org'
     archive_pattern = rf'{archive}/details/([^\/]*).*'
@@ -48,19 +50,20 @@ def handle_url(url):
     if archive_match:
         content_name = archive_match.group(1)
         archive_url = f'{archive}/download/{content_name}'
+        dl_url = f'{archive}/compress/{content_name}'
         r = requests.get(archive_url)
         soup = BeautifulSoup(r.content, 'html.parser')
         div = soup.find('div', class_='download-directory-listing')
         urls = div.find_all('a')
-        dl_urls = [(
+        dl_urls = [('all', dl_url)] + [(
             url['href'].split('.')[-1],
             f"{archive}/download/{content_name}/{url['href']}"
         )
             for url in urls
             if (not url['href'].endswith(content_name) and
-                url.get_text().find('View Contents') == -1)
+                not url.endswith('/'))
         ]
-        return dl_urls
+        return dl_urls, 0
 
     dropbox_pattern = 'dropbox.com'
     dropbox_match = dropbox_pattern in url
@@ -74,14 +77,15 @@ def handle_url(url):
         query['dl'] = 1
         query_string = '&'.join([f"{k}={v}" for k, v in query.items()])
         parse_result = parse_result._replace(query=query_string)
-        return [('dropbox', urlunparse(parse_result))]
+        return [('dropbox', urlunparse(parse_result))], 0
 
-    return [('direct', url)]
+    return [('direct', url)], 0
 
 
 def download(url, download_dir='', download_file=None, download_path=None,
              headers={}, session=None, block_size=1024, timeout=60,
-             resume=True, show_progress=True, checksum=None):
+             resume=True, show_progress=True, checksum=None,
+             url_handler=None):
     """
     Download a file
 
@@ -127,6 +131,9 @@ def download(url, download_dir='', download_file=None, download_path=None,
         Value of md5 checksum of the file to be downloaded.
         If provided, the downloaded file will be verified using the checksum.
         The default is None.
+    url_handler : function, optional
+        Handler function for special cases of download URLs
+        The function should return a list of (TAG, URL) pairs and default index
 
     Raises
     ------
@@ -141,6 +148,11 @@ def download(url, download_dir='', download_file=None, download_path=None,
     """
 
     try:
+        if url_handler is None:
+            url_handler = handle_url
+        urls, url_idx = url_handler(url)
+        url = urls[url_idx][1]
+
         request_maker = requests if session is None else session
 
         r = request_maker.head(url, headers=headers, timeout=timeout)
