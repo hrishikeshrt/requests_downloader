@@ -21,7 +21,7 @@ setup(
     author_email='hrishikeshrt@linuxmail.org',
     python_requires='>=3.6',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Natural Language :: English',
@@ -47,6 +47,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/hrishikeshrt/requests_downloader',
-    version='0.1.3',
+    version='0.1.4',
     zip_safe=False,
 )

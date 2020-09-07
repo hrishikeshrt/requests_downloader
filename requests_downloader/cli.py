@@ -42,11 +42,17 @@ def main():
     parser.add_argument('--checksum',
                         help='Checksum to verify integrity of the download',
                         default=None)
+    parser.add_argument('--verbose',
+                        help='Enable verbose output',
+                        action='store_true')
+    parser.add_argument('--debug',
+                        help='Enable debug information',
+                        action='store_true')
     args = vars(parser.parse_args())
     urls, url_idx = downloader.handle_url(args['url'])
     if len(urls) > 1:
         options = [
-            f'{idx+1:>3}. {s} {u}' for idx, (s, u) in enumerate(urls)
+            f'{idx+1:>3}. | {s.upper():<8}| {u}' for idx, (s, u) in enumerate(urls)
         ]
         print('\n'.join(options))
         valid_responses = [str(i+1) for i in range(len(options))]
@@ -79,6 +85,8 @@ def main():
         show_progress=args['progress'],
         smart=False,
         checksum=args['checksum'],
+        verbose=args['verbose'],
+        debug=args['debug']
     )
 
     return 0

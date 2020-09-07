@@ -17,6 +17,10 @@ import requests
 from tqdm import tqdm
 from bs4 import BeautifulSoup
 
+log = logging.getLogger(__name__)
+log.addHandler(logging.StreamHandler())
+log.setLevel(logging.WARNING)
+
 ###############################################################################
 
 
@@ -33,29 +37,33 @@ def handle_url(url):
     -------
     urls : list
         List of inferred download URLs from the provided URL.
-    default: int
+    default_idx: int
         Index of default URL to download.
     """
+    default_idx = 0
     drive = 'https://drive.google.com'
     drive_pattern = rf'{drive}/file/d/([^\/]*)/.*'
     drive_match = re.match(drive_pattern, url)
     if drive_match:
         file_id = drive_match.group(1)
         dl_url = f'{drive}/u/0/uc?id={file_id}&export=download'
-        return [('drive', dl_url)], 0
+        return [('drive', dl_url)], default_idx
 
     archive = 'https://archive.org'
-    archive_pattern = rf'{archive}/details/([^\/]*).*'
+    archive_pattern = rf'{archive}/(details|download)/([^\/]*).*'
     archive_match = re.match(archive_pattern, url)
     if archive_match:
-        content_name = archive_match.group(1)
+        content_name = archive_match.group(2)
         archive_url = f'{archive}/download/{content_name}'
         dl_url = f'{archive}/compress/{content_name}'
+        dl_urls = [('all', dl_url)]
+        default_idx = 0
+
         r = requests.get(archive_url)
         soup = BeautifulSoup(r.content, 'html.parser')
         div = soup.find('div', class_='download-directory-listing')
         urls = div.find_all('a')
-        dl_urls = [('all', dl_url)] + [(
+        dl_urls += [(
             url['href'].split('.')[-1],
             f"{archive}/download/{content_name}/{url['href']}"
         )
@@ -64,7 +72,17 @@ def handle_url(url):
                 not url['href'].endswith('/') and
                 url.get_text().find("View Contents") == -1)
         ]
-        return dl_urls, 0
+        preference_order = ['pdf', 'mp3', 'all']
+        for preference in preference_order:
+            for idx, (tag, url) in enumerate(dl_urls):
+                if tag == preference:
+                    default_idx = idx
+                    break
+            else:
+                continue
+            break
+
+        return dl_urls, default_idx
 
     dropbox_pattern = 'dropbox.com'
     dropbox_match = dropbox_pattern in url
@@ -78,15 +96,15 @@ def handle_url(url):
         query['dl'] = 1
         query_string = '&'.join([f"{k}={v}" for k, v in query.items()])
         parse_result = parse_result._replace(query=query_string)
-        return [('dropbox', urlunparse(parse_result))], 0
+        return [('dropbox', urlunparse(parse_result))], default_idx
 
-    return [('direct', url)], 0
+    return [('direct', url)], default_idx
 
 
 def download(url, download_dir='', download_file=None, download_path=None,
              headers={}, session=None, block_size=1024, timeout=60,
              resume=True, show_progress=True, checksum=None, smart=True,
-             url_handler=None):
+             url_handler=None, verbose=False, debug=False):
     """
     Download a file
 
@@ -138,7 +156,12 @@ def download(url, download_dir='', download_file=None, download_path=None,
     url_handler : function, optional
         Handler function for special cases of download URLs
         The function should return a list of (TAG, URL) pairs and default index
-
+    verbose : bool, optional
+        Print log-level INFO messages to stdout
+        The default is False.
+    debug : bool, optional
+        Print log-level DBUG messages to stdout
+        The default is False.
     Raises
     ------
     RuntimeWarning
@@ -150,6 +173,10 @@ def download(url, download_dir='', download_file=None, download_path=None,
     bool
         Indicates whether the function completed without any errors
     """
+    if verbose:
+        log.setLevel(logging.INFO)
+    if debug:
+        log.setLevel(logging.DEBUG)
 
     success = True
     if smart:
@@ -158,23 +185,28 @@ def download(url, download_dir='', download_file=None, download_path=None,
         urls, url_idx = url_handler(url)
         url = urls[url_idx][1]
 
+    log.debug(f"URL: {url}")
+
     request_maker = requests if session is None else session
 
     r = request_maker.head(url, headers=headers, timeout=timeout)
 
     resume_supported = r.headers.get('accept-ranges') == 'bytes'
     file_mode = 'ab' if resume_supported else 'wb'
+    log.debug(f"Resume Supported: {resume_supported}")
 
     r = request_maker.get(
         url, headers=headers, timeout=timeout, stream=True
     )
 
     content_length = int(r.headers.get('content-length', 0))
-    logging.debug(f"Content-Length: {content_length}")
+    log.debug(f"Content-Length: {content_length}")
 
     content_type = r.headers.get('content-type')
+    log.debug(f"Content-Type: {content_type}")
+
     extension_guess = mimetypes.guess_extension(content_type)
-    logging.debug(f"Content-Type: {content_type}")
+    log.debug(f"Extension Guess: {extension_guess}")
 
     visible_name = r.url.split('/')[-1]
     if extension_guess and not visible_name.endswith(extension_guess):
@@ -182,6 +214,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
 
     provided_name = None
     cd = r.headers.get('content-disposition', None)
+    log.debug(f"Content-Disposition: {cd}")
     if cd is not None:
         provided_names = re.findall('filename="(.+)"', cd)
         if provided_names:
@@ -195,19 +228,28 @@ def download(url, download_dir='', download_file=None, download_path=None,
     else:
         download_file = os.path.basename(download_path)
 
+    log.info(
+        f"Downloading '{download_file}' ... "
+        f"({content_length} bytes)"
+    )
+
+    with open(download_path, 'ab') as f:
+        position = f.tell()
+        if position == content_length:
+            log.info(
+                f"File '{download_file}' is already downloaded!"
+            )
+            return True
+
     wrote = 0
     with open(download_path, file_mode) as f:
         position = f.tell()
         if resume and resume_supported:
-            if position == content_length:
-                logging.info(
-                    f"File '{download_file}' is already downloaded!"
-                )
-                return True
-
             if position:
                 headers['Range'] = f'bytes={position}-'
-                logging.info(f"Resumed '{download_file}' from {position}")
+                log.info(
+                    f"Resuming '{download_file}' from {position} bytes"
+                )
 
             r = request_maker.get(
                 url, headers=headers, timeout=timeout, stream=True
@@ -225,7 +267,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
                 t.update(len(data))
 
     if not content_length == 0 and not position + wrote == content_length:
-        logging.warning(f"Inconsistency in download from '{url}'.")
+        log.warning(f"Inconsistency in download from '{url}'.")
         raise RuntimeWarning(
             f"Wrote {wrote} bytes out of {content_length - position}."
         )
@@ -234,13 +276,13 @@ def download(url, download_dir='', download_file=None, download_path=None,
     if checksum:
         download_checksum = md5sum(download_path)
         if download_checksum != checksum:
-            logging.warning("Invalid checksum.")
+            log.warning("Invalid checksum.")
             raise RuntimeWarning(
                 f"Invalid checksum ({download_file}: {download_checksum})."
             )
             success = False
 
-    logging.info(f"Succssfully downloaded '{download_file}' from '{url}'.")
+    log.info(f"Succssfully downloaded '{download_file}' from '{url}'.")
     return success
 
 ###############################################################################
