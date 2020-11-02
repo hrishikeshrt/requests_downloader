@@ -2,6 +2,11 @@
 History
 =======
 
+0.1.5 (2020-11-03)
+------------------
+
+* Support for Google Docs (Document, Spreadsheets, Presentations).
+
 0.1.4 (2020-09-07)
 ------------------
 

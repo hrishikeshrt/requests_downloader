@@ -49,6 +49,25 @@ def handle_url(url):
         dl_url = f'{drive}/u/0/uc?id={file_id}&export=download'
         return [('drive', dl_url)], default_idx
 
+    docs = 'https://docs.google.com'
+    preference = {
+        'spreadsheets': ['xlsx', 'ods', 'pdf'],
+        'document': ['docx', 'odt', 'pdf'],
+        'presentation': ['pptx', 'odp', 'pdf']
+    }
+    doc_pattern = rf'{docs}/(spreadsheets|document|presentation)/d/([^\/]*)/.*'
+    doc_match = re.match(doc_pattern, url)
+    if doc_match:
+        doc_type = doc_match.group(1)
+        doc_id = doc_match.group(2)
+        dl_types = preference[doc_type]
+        dl_urls = [
+            (dl_type, (f'{docs}/{doc_type}/d/{doc_id}/export?'
+                       f'format={dl_type}&id={doc_id}'))
+            for dl_type in dl_types
+        ]
+        return dl_urls, default_idx
+
     archive = 'https://archive.org'
     archive_pattern = rf'{archive}/(details|download)/([^\/]*).*'
     archive_match = re.match(archive_pattern, url)
@@ -235,7 +254,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
 
     with open(download_path, 'ab') as f:
         position = f.tell()
-        if position == content_length:
+        if position and position == content_length:
             log.info(
                 f"File '{download_file}' is already downloaded!"
             )
