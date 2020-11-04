@@ -9,6 +9,7 @@ Command Line Interface
 import sys
 import argparse
 
+from . import __version__
 from requests_downloader import downloader
 
 ###############################################################################
@@ -48,7 +49,9 @@ def main():
     parser.add_argument('--debug',
                         help='Enable debug information',
                         action='store_true')
+    parser.add_argument('--version', action='version', version='%(prog)s ' + __version__)
     args = vars(parser.parse_args())
+
     urls, url_idx = downloader.handle_url(args['url'])
     if len(urls) > 1:
         options = [

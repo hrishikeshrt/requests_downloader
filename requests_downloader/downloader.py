@@ -42,10 +42,17 @@ def handle_url(url):
     """
     default_idx = 0
     drive = 'https://drive.google.com'
-    drive_pattern = rf'{drive}/file/d/([^\/]*)/.*'
-    drive_match = re.match(drive_pattern, url)
-    if drive_match:
-        file_id = drive_match.group(1)
+    drive_pattern_1 = rf'{drive}/file/d/([^\/]*)/.*'
+    drive_match_1 = re.match(drive_pattern_1, url)
+    if drive_match_1:
+        file_id = drive_match_1.group(1)
+        dl_url = f'{drive}/u/0/uc?id={file_id}&export=download'
+        return [('drive', dl_url)], default_idx
+
+    drive_pattern_2 = rf'{drive}/open\?id=([^\/&]*).*'
+    drive_match_2 = re.match(drive_pattern_2, url)
+    if drive_match_2:
+        file_id = drive_match_2.group(1)
         dl_url = f'{drive}/u/0/uc?id={file_id}&export=download'
         return [('drive', dl_url)], default_idx
 
