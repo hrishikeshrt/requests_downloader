@@ -47,7 +47,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'requests_downloader'
-copyright = "2020, Hrishikesh Terdalkar"
+copyright = "2020-2021, Hrishikesh Terdalkar"
 author = "Hrishikesh Terdalkar"
 
 # The version info for the project you're documenting, acts as replacement

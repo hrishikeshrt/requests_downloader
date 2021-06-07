@@ -186,7 +186,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
         Print log-level INFO messages to stdout
         The default is False.
     debug : bool, optional
-        Print log-level DBUG messages to stdout
+        Print log-level DEBUG messages to stdout
         The default is False.
     Raises
     ------
@@ -292,23 +292,35 @@ def download(url, download_dir='', download_file=None, download_path=None,
                 wrote += f.write(data)
                 t.update(len(data))
 
-    if not content_length == 0 and not position + wrote == content_length:
+    if content_length == 0:
+        os.unlink(download_path)
+        log.warning(
+            f"Downloaded file '{download_file}' was empty and was removed."
+        )
+        success = False
+    elif (position + wrote) != content_length:
         log.warning(f"Inconsistency in download from '{url}'.")
+        success = False
         raise RuntimeWarning(
             f"Wrote {wrote} bytes out of {content_length - position}."
         )
-        success = False
 
-    if checksum:
+    if checksum is not None:
         download_checksum = md5sum(download_path)
         if download_checksum != checksum:
             log.warning("Invalid checksum.")
+            success = False
             raise RuntimeWarning(
                 f"Invalid checksum ({download_file}: {download_checksum})."
             )
-            success = False
 
-    log.info(f"Succssfully downloaded '{download_file}' from '{url}'.")
+    if success:
+        log.info(f"Successfully downloaded '{download_file}' from '{url}'.")
+    else:
+        log.warning(
+            f"An error occurred in downloading '{download_file}' from '{url}'."
+        )
+
     return success
 
 ###############################################################################

@@ -2,11 +2,7 @@
 
 """Tests for `requests_downloader` package."""
 
-from requests_downloader import __version__, downloader
-
-
-def test_version():
-    assert __version__ == "0.1.6"
+from requests_downloader import downloader
 
 
 def test_handle_url():
@@ -28,7 +24,7 @@ def test_handle_url():
         ],
     }
     for url, url_result in url_result.items():
-        assert downloader.handle_url(url) == url_result
+        assert downloader.handle_url(url) == (url_result, 0)
 
 
 def test_download():
