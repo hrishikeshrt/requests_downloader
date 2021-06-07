@@ -18,8 +18,6 @@ from tqdm import tqdm
 from bs4 import BeautifulSoup
 
 log = logging.getLogger(__name__)
-log.addHandler(logging.StreamHandler())
-log.setLevel(logging.WARNING)
 
 ###############################################################################
 
@@ -182,12 +180,6 @@ def download(url, download_dir='', download_file=None, download_path=None,
     url_handler : function, optional
         Handler function for special cases of download URLs
         The function should return a list of (TAG, URL) pairs and default index
-    verbose : bool, optional
-        Print log-level INFO messages to stdout
-        The default is False.
-    debug : bool, optional
-        Print log-level DEBUG messages to stdout
-        The default is False.
     Raises
     ------
     RuntimeWarning
@@ -199,11 +191,6 @@ def download(url, download_dir='', download_file=None, download_path=None,
     bool
         Indicates whether the function completed without any errors
     """
-    if verbose:
-        log.setLevel(logging.INFO)
-    if debug:
-        log.setLevel(logging.DEBUG)
-
     success = True
     if smart:
         if url_handler is None:

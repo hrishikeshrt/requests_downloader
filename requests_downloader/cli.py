@@ -7,10 +7,17 @@ Command Line Interface
 ###############################################################################
 
 import sys
+import logging
 import argparse
 
 from . import __version__
 from requests_downloader import downloader
+
+###############################################################################
+
+logger = logging.getLogger()
+logger.addHandler(logging.StreamHandler())
+logger.setLevel(logging.WARNING)
 
 ###############################################################################
 
@@ -49,18 +56,28 @@ def main():
     parser.add_argument('--debug',
                         help='Enable debug information',
                         action='store_true')
-    parser.add_argument('--version', action='version', version='%(prog)s ' + __version__)
+    parser.add_argument('--version',
+                        action='version',
+                        version='%(prog)s ' + __version__)
     args = vars(parser.parse_args())
+
+    if args['verbose']:
+        logger.setLevel(logging.INFO)
+    if args['debug']:
+        logger.setLevel(logging.DEBUG)
 
     urls, url_idx = downloader.handle_url(args['url'])
     if len(urls) > 1:
         options = [
-            f'{idx+1:>3}. | {s.upper():<8}| {u}' for idx, (s, u) in enumerate(urls)
+            f'{idx+1:>3}. | {s.upper():<8}| {u}'
+            for idx, (s, u) in enumerate(urls)
         ]
         print('\n'.join(options))
         valid_responses = [str(i+1) for i in range(len(options))]
         while True:
-            response = input(f'Please choose which file to download (default: {url_idx + 1}): ')
+            response = input(
+                f'Please choose a file to download (default: {url_idx + 1}): '
+            )
             if not response:
                 response = url_idx
                 break
@@ -87,9 +104,7 @@ def main():
         resume=args['resume'],
         show_progress=args['progress'],
         smart=False,
-        checksum=args['checksum'],
-        verbose=args['verbose'],
-        debug=args['debug']
+        checksum=args['checksum']
     )
 
     return 0
