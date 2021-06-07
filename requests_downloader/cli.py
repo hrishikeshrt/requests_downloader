@@ -94,7 +94,7 @@ def main():
         response = url_idx
 
     url = urls[response][1]
-    downloader.download(
+    location = downloader.download(
         url,
         download_dir=args['download_dir'],
         download_file=args['download_file'],

@@ -180,16 +180,12 @@ def download(url, download_dir='', download_file=None, download_path=None,
     url_handler : function, optional
         Handler function for special cases of download URLs
         The function should return a list of (TAG, URL) pairs and default index
-    Raises
-    ------
-    RuntimeWarning
-        If inconsistent amount of content is downloaded/written.
-        If the checksum is mismatched.
 
     Returns
     -------
-    bool
-        Indicates whether the function completed without any errors
+    download_path: str or None
+        If download was successful, full `download_path`
+        otherwise, None
     """
     success = True
     if smart:
@@ -249,10 +245,8 @@ def download(url, download_dir='', download_file=None, download_path=None,
     with open(download_path, 'ab') as f:
         position = f.tell()
         if position and position == content_length:
-            log.info(
-                f"File '{download_file}' is already downloaded!"
-            )
-            return True
+            log.info(f"File '{download_file}' is already downloaded!")
+            return download_path
 
     wrote = 0
     with open(download_path, file_mode) as f:
@@ -286,29 +280,29 @@ def download(url, download_dir='', download_file=None, download_path=None,
         )
         success = False
     elif (position + wrote) != content_length:
-        log.warning(f"Inconsistency in download from '{url}'.")
         success = False
-        raise RuntimeWarning(
+        log.warning(f"Inconsistency in download from '{url}'.")
+        log.debug(
             f"Wrote {wrote} bytes out of {content_length - position}."
         )
 
     if checksum is not None:
         download_checksum = md5sum(download_path)
         if download_checksum != checksum:
-            log.warning("Invalid checksum.")
             success = False
-            raise RuntimeWarning(
-                f"Invalid checksum ({download_file}: {download_checksum})."
+            log.warning("Invalid checksum.")
+            log.debug(
+                f"md5sum({download_file}) = {download_checksum} != {checksum})"
             )
 
     if success:
         log.info(f"Successfully downloaded '{download_file}' from '{url}'.")
+        return download_path
     else:
-        log.warning(
+        log.info(
             f"An error occurred in downloading '{download_file}' from '{url}'."
         )
-
-    return success
+        return False
 
 ###############################################################################
 
