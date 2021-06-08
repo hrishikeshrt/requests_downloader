@@ -68,7 +68,7 @@ def handle_url(url):
         log.debug("Google Docs pattern matched.")
         doc_type = doc_match.group(1)
         doc_id = doc_match.group(2)
-        log.debug("Type: {doc_type}, ID: {doc_id}")
+        log.debug(f"Type: {doc_type}, ID: {doc_id}")
         dl_types = preference[doc_type]
         dl_urls = [
             (dl_type, (f'{docs}/{doc_type}/d/{doc_id}/export?'
@@ -242,6 +242,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
     visible_name = r.url.split('/')[-1]
     if extension_guess and not visible_name.endswith(extension_guess):
         visible_name += f'.{extension_guess}'
+    visible_name = unquote(visible_name, 'UTF-8')
     log.debug(f"Visible Name: {visible_name}")
 
     provided_name = None
