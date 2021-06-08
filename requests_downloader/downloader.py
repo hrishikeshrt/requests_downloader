@@ -21,6 +21,17 @@ log = logging.getLogger(__name__)
 
 ###############################################################################
 
+HEADERS = {
+    'Range': 'bytes=0-',
+    'User-Agent': ('Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) '
+                   'Gecko/20100101 Firefox/89.0'),
+    'Upgrade-Insecure-Requests': '1',
+    'Connection': 'keep-alive',
+    'Keep-Alive': 'timeout=10, max=100'
+}
+
+###############################################################################
+
 
 def handle_url(url):
     """
@@ -71,6 +82,9 @@ def handle_url(url):
         log.debug(f"Type: {doc_type}, ID: {doc_id}")
         dl_types = preference[doc_type]
         dl_urls = [
+            (dl_type, (f'{docs}/{doc_type}/d/{doc_id}/export/{dl_type}'
+                       f'?id={doc_id}'))
+            if doc_type == 'presentation' else
             (dl_type, (f'{docs}/{doc_type}/d/{doc_id}/export?'
                        f'format={dl_type}&id={doc_id}'))
             for dl_type in dl_types
@@ -159,9 +173,13 @@ def download(url, download_dir='', download_file=None, download_path=None,
     headers : dict, optional
         Headers to be sent.
         The default is {}.
+        Note:
+            * These headers are merged with a default set of headers.
+            * In case of a conflict the user-provided values are used.
+            * This behaviour is inherited from requests.Session()
     session : object, optional
-        A valid requests session object.
-        Useful when download url requires authentication.
+        A valid requests.Session object.
+        This is useful when download url requires authentication.
         In such a case, authentication can be handled independently in session.
         The default is None.
     block_size : int, optional
@@ -202,18 +220,21 @@ def download(url, download_dir='', download_file=None, download_path=None,
 
     log.debug(f"URL: {url}")
 
-    request_maker = requests if session is None else session
-    headers['Range'] = 'bytes=0-'
+    if session is None:
+        session = requests.Session()
+        session.headers.update(HEADERS)
 
-    r = request_maker.head(url, headers=headers, timeout=timeout)
+    log.debug(session.headers)
+    r = session.head(url, headers=headers, timeout=timeout)
 
     resume_supported = r.headers.get('accept-ranges') == 'bytes'
     file_mode = 'ab' if resume_supported else 'wb'
     log.debug(f"Resume Supported: {resume_supported}")
 
-    r = request_maker.get(
+    r = session.get(
         url, headers=headers, timeout=timeout, stream=True
     )
+    log.debug(r.headers)
 
     content_length = int(r.headers.get('content-length', 0))
     log.debug(f"Content-Length: {content_length}")
@@ -314,7 +335,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
                     f"Resuming '{download_file}' from {position} bytes"
                 )
 
-            r = request_maker.get(
+            r = session.get(
                 url, headers=headers, timeout=timeout, stream=True
             )
 
