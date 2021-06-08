@@ -273,7 +273,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
 
         if provided_encoded_names:
             encoding, name = provided_encoded_names[0].split("''")
-            print(encoding, name)
+            log.debug(f"Encoding: '{encoding}', Name: '{name}'")
             provided_name = unquote(name, encoding=encoding)
 
         log.debug(f"Final Provided Name: {provided_name}")
