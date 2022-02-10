@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Top-level package for requests_downloader."""
+"""
+requests_downloader
+
+Python package to download files
+"""
+
+###############################################################################
 
 __author__ = """Hrishikesh Terdalkar"""
 __email__ = 'hrishikeshrt@linuxmail.org'
 __version__ = '0.2.3'
+
+###############################################################################
+
+from .downloader import download, handle_url, md5sum  # noqa
