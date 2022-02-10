@@ -68,6 +68,7 @@ Use Console Interface
 ---------------------
 
 .. code-block:: console
+
     usage: smart-dl [-h] [--download_dir DOWNLOAD_DIR] [--download_file DOWNLOAD_FILE]
                     [--download_path DOWNLOAD_PATH] [--block BLOCK] [--timeout TIMEOUT]
                     [--resume] [--progress] [--checksum CHECKSUM] [--verbose] [--debug]
