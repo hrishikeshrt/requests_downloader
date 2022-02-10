@@ -14,4 +14,6 @@ __version__ = '0.3.1'
 
 ###############################################################################
 
-from .downloader import download, handle_url, md5sum  # noqa
+from .downloader import download    # noqa
+from .handlers import handle_url    # noqa
+from .utils import md5sum           # noqa

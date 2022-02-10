@@ -11,14 +11,15 @@ import logging
 import argparse
 
 from . import __version__
-from requests_downloader import downloader
+from .downloader import download
+from .handlers import handle_url
 
 ###############################################################################
 
-logger = logging.getLogger()
-if not logger.hasHandlers():
-    logger.addHandler(logging.StreamHandler())
-logger.setLevel(logging.WARNING)
+ROOT_LOGGER = logging.getLogger()
+if not ROOT_LOGGER.hasHandlers():
+    ROOT_LOGGER.addHandler(logging.StreamHandler())
+ROOT_LOGGER.setLevel(logging.WARNING)
 
 ###############################################################################
 
@@ -63,11 +64,11 @@ def main():
     args = vars(parser.parse_args())
 
     if args['verbose']:
-        logger.setLevel(logging.INFO)
+        ROOT_LOGGER.setLevel(logging.INFO)
     if args['debug']:
-        logger.setLevel(logging.DEBUG)
+        ROOT_LOGGER.setLevel(logging.DEBUG)
 
-    urls, url_idx = downloader.handle_url(args['url'])
+    urls, url_idx = handle_url(args['url'])
     if len(urls) > 1:
         options = [
             f'{idx+1:>3}. | {s.upper():<8}| {u}'
@@ -95,7 +96,7 @@ def main():
         response = url_idx
 
     url = urls[response][1]
-    location = downloader.download(
+    location = download(
         url,
         download_dir=args['download_dir'],
         download_file=args['download_file'],
@@ -107,6 +108,7 @@ def main():
         smart=False,
         checksum=args['checksum']
     )
+    print(f"File saved to '{location}'.")
 
     return 0
 

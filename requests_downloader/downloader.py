@@ -7,17 +7,19 @@ Main module containing download function
 ###############################################################################
 
 import os
-import re
-import hashlib
 import logging
 import mimetypes
-from urllib.parse import urlparse, urlunparse, unquote
+from urllib.parse import unquote
 
 import requests
 from tqdm import tqdm
-from bs4 import BeautifulSoup
 
-log = logging.getLogger(__name__)
+from .handlers import handle_url
+from .utils import md5sum
+
+###############################################################################
+
+LOGGER = logging.getLogger(__name__)
 
 ###############################################################################
 
@@ -31,118 +33,6 @@ HEADERS = {
 }
 
 ###############################################################################
-
-
-def handle_url(url):
-    """
-    Infer the actual download URLs by handling various special cases
-
-    Parameters
-    ----------
-    url : str
-        Provided download URL.
-
-    Returns
-    -------
-    urls : list
-        List of inferred download URLs from the provided URL.
-    default_idx: int
-        Index of default URL to download.
-    """
-    default_idx = 0
-    drive = 'https://drive.google.com'
-    drive_pattern_1 = rf'{drive}/file/d/([^\/]*)/.*'
-    drive_match_1 = re.match(drive_pattern_1, url)
-    if drive_match_1:
-        log.debug("Google Drive pattern-1 matched.")
-        file_id = drive_match_1.group(1)
-        dl_url = f'{drive}/u/0/uc?id={file_id}&export=download'
-        return [('drive', dl_url)], default_idx
-
-    drive_pattern_2 = rf'{drive}/open\?id=([^\/&]*).*'
-    drive_match_2 = re.match(drive_pattern_2, url)
-    if drive_match_2:
-        log.debug("Google Drive pattern-2 matched.")
-        file_id = drive_match_2.group(1)
-        dl_url = f'{drive}/u/0/uc?id={file_id}&export=download'
-        return [('drive', dl_url)], default_idx
-
-    docs = 'https://docs.google.com'
-    preference = {
-        'spreadsheets': ['xlsx', 'ods', 'pdf'],
-        'document': ['docx', 'odt', 'pdf'],
-        'presentation': ['pptx', 'odp', 'pdf']
-    }
-    doc_pattern = rf'{docs}/(spreadsheets|document|presentation)/d/([^\/]*)/.*'
-    doc_match = re.match(doc_pattern, url)
-    if doc_match:
-        log.debug("Google Docs pattern matched.")
-        doc_type = doc_match.group(1)
-        doc_id = doc_match.group(2)
-        log.debug(f"Type: {doc_type}, ID: {doc_id}")
-        dl_types = preference[doc_type]
-        dl_urls = [
-            (dl_type, (f'{docs}/{doc_type}/d/{doc_id}/export/{dl_type}'
-                       f'?id={doc_id}'))
-            if doc_type == 'presentation' else
-            (dl_type, (f'{docs}/{doc_type}/d/{doc_id}/export?'
-                       f'format={dl_type}&id={doc_id}'))
-            for dl_type in dl_types
-        ]
-        return dl_urls, default_idx
-
-    archive = 'https://archive.org'
-    archive_pattern = rf'{archive}/(details|download)/([^\/]*).*'
-    archive_match = re.match(archive_pattern, url)
-    if archive_match:
-        log.debug("Archive.org pattern matched.")
-        content_name = archive_match.group(2)
-        archive_url = f'{archive}/download/{content_name}'
-        dl_url = f'{archive}/compress/{content_name}'
-        dl_urls = [('all', dl_url)]
-        default_idx = 0
-
-        r = requests.get(archive_url)
-        soup = BeautifulSoup(r.content, 'html.parser')
-        div = soup.find('div', class_='download-directory-listing')
-        urls = div.find_all('a')
-        dl_urls += [(
-            url['href'].split('.')[-1],
-            f"{archive}/download/{content_name}/{url['href']}"
-        )
-            for url in urls
-            if (not url['href'].endswith(content_name) and
-                not url['href'].endswith('/') and
-                url.get_text().find("View Contents") == -1)
-        ]
-        preference_order = ['pdf', 'mp3', 'all']
-        for preference in preference_order:
-            for idx, (tag, url) in enumerate(dl_urls):
-                if tag == preference:
-                    default_idx = idx
-                    break
-            else:
-                continue
-            break
-
-        return dl_urls, default_idx
-
-    dropbox_pattern = 'dropbox.com'
-    dropbox_match = dropbox_pattern in url
-    if dropbox_match:
-        parse_result = urlparse(url)
-        query = dict(
-            p.split('=')
-            for p in parse_result.query.split('&')
-            if '=' in p
-        )
-        query['dl'] = 1
-        query_string = '&'.join([f"{k}={v}" for k, v in query.items()])
-        parse_result = parse_result._replace(query=query_string)
-        return [('dropbox', urlunparse(parse_result))], default_idx
-
-    log.debug("No specific pattern matched.")
-    return [('direct', url)], default_idx
 
 
 def download(url, download_dir='', download_file=None, download_path=None,
@@ -218,57 +108,57 @@ def download(url, download_dir='', download_file=None, download_path=None,
         urls, url_idx = url_handler(url)
         url = urls[url_idx][1]
 
-    log.debug(f"URL: {url}")
+    LOGGER.debug(f"URL: {url}")
 
     if session is None:
         session = requests.Session()
         session.headers.update(HEADERS)
 
-    log.debug(session.headers)
+    LOGGER.debug(session.headers)
     r = session.head(url, headers=headers, timeout=timeout)
 
     resume_supported = r.headers.get('accept-ranges') == 'bytes'
     file_mode = 'ab' if resume_supported else 'wb'
-    log.debug(f"Resume Supported: {resume_supported}")
+    LOGGER.debug(f"Resume Supported: {resume_supported}")
 
     r = session.get(
         url, headers=headers, timeout=timeout, stream=True
     )
-    log.debug(r.headers)
+    LOGGER.debug(r.headers)
 
     content_length = int(r.headers.get('content-length', 0))
-    log.debug(f"Content-Length: {content_length}")
+    LOGGER.debug(f"Content-Length: {content_length}")
 
     content_range = r.headers.get('content-range', '')
     _content_range_part = content_range.split('/')[-1].strip()
-    log.debug(f"Content-Range: {content_range}")
+    LOGGER.debug(f"Content-Range: {content_range}")
 
     if content_length == 0 and _content_range_part:
         content_length = int(_content_range_part)
-        log.debug(f"Content-Length (from Range): {content_length}")
+        LOGGER.debug(f"Content-Length (from Range): {content_length}")
 
     content_type = r.headers.get('content-type')
     html_content = (content_type == 'text/html; charset=utf-8')
-    log.debug(f"Content-Type: {content_type}")
-    log.debug(f"HTML Content: {html_content}")
+    LOGGER.debug(f"Content-Type: {content_type}")
+    LOGGER.debug(f"HTML Content: {html_content}")
 
     if html_content:
-        log.error("HTML content detected.")
-        log.error(f"Download from {url} aborted.")
+        LOGGER.error("HTML content detected.")
+        LOGGER.error(f"Download from {url} aborted.")
         return False
 
     extension_guess = mimetypes.guess_extension(content_type)
-    log.debug(f"Extension Guess: {extension_guess}")
+    LOGGER.debug(f"Extension Guess: {extension_guess}")
 
     visible_name = r.url.split('/')[-1]
     if extension_guess and not visible_name.endswith(extension_guess):
         visible_name += f'.{extension_guess}'
     visible_name = unquote(visible_name, 'UTF-8')
-    log.debug(f"Visible Name: {visible_name}")
+    LOGGER.debug(f"Visible Name: {visible_name}")
 
     provided_name = None
     cd = r.headers.get('content-disposition', None)
-    log.debug(f"Content-Disposition: {cd}")
+    LOGGER.debug(f"Content-Disposition: {cd}")
     if cd is not None:
         cd_fields = {}
         for part in cd.split(';'):
@@ -278,7 +168,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
                 _v = _kv[1].strip(' \t\n"\'')
                 cd_fields[_k] = _v
 
-        log.debug(cd_fields)
+        LOGGER.debug(cd_fields)
         provided_names = [
             v for k, v in cd_fields.items() if k == 'filename'
         ]
@@ -287,25 +177,25 @@ def download(url, download_dir='', download_file=None, download_path=None,
         ]
 
         # provided_names = re.findall('filename="(.+)"', cd)
-        log.debug(f"Filenames: {provided_names}")
-        log.debug(f"Filenames*: {provided_encoded_names}")
+        LOGGER.debug(f"Filenames: {provided_names}")
+        LOGGER.debug(f"Filenames*: {provided_encoded_names}")
 
         if provided_names:
             provided_name = provided_names[0]
 
         if provided_encoded_names:
             encoding, name = provided_encoded_names[0].split("''")
-            log.debug(f"Encoding: '{encoding}', Name: '{name}'")
+            LOGGER.debug(f"Encoding: '{encoding}', Name: '{name}'")
             provided_name = unquote(name, encoding=encoding)
 
-        log.debug(f"Final Provided Name: {provided_name}")
+        LOGGER.debug(f"Final Provided Name: {provided_name}")
 
     if not download_file:
         download_file = provided_name if provided_name else visible_name
 
     if not download_file:
-        log.error("Download location could not be inferred.")
-        log.error(f"Download from {url} aborted.")
+        LOGGER.error("Download location could not be inferred.")
+        LOGGER.error(f"Download from {url} aborted.")
         return False
 
     if not download_path:
@@ -313,16 +203,16 @@ def download(url, download_dir='', download_file=None, download_path=None,
     else:
         download_file = os.path.basename(download_path)
 
-    log.info(
+    LOGGER.info(
         f"Downloading '{download_file}' ... "
         f"({content_length} bytes)"
     )
 
     with open(download_path, 'ab') as f:
         position = f.tell()
-        log.debug(f"Current Position: {position}")
+        LOGGER.debug(f"Current Position: {position}")
         if position and position == content_length:
-            log.info(f"File '{download_file}' is already downloaded!")
+            LOGGER.info(f"File '{download_file}' is already downloaded!")
             return download_path
 
     wrote = 0
@@ -331,7 +221,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
         if resume and resume_supported:
             if position:
                 headers['Range'] = f'bytes={position}-'
-                log.info(
+                LOGGER.info(
                     f"Resuming '{download_file}' from {position} bytes"
                 )
 
@@ -350,23 +240,25 @@ def download(url, download_dir='', download_file=None, download_path=None,
                 wrote += f.write(data)
                 t.update(len(data))
 
-    log.debug(f"Wrote: {wrote}")
+    LOGGER.debug(f"Wrote: {wrote}")
 
     if content_length == 0:
         filesize = os.stat(download_path).st_size
-        log.debug(f"Filesize: {filesize}")
+        LOGGER.debug(f"Filesize: {filesize}")
         if not filesize:
             os.unlink(download_path)
-            log.warning(
+            LOGGER.warning(
                 f"Downloaded file '{download_file}' was empty and was removed."
             )
             success = False
         else:
-            log.warning(f"Integrity of '{download_file}' could not verified.")
+            LOGGER.warning(
+                f"Integrity of '{download_file}' could not verified."
+            )
     elif (position + wrote) != content_length:
         success = False
-        log.warning(f"Inconsistency in download from '{url}'.")
-        log.debug(
+        LOGGER.warning(f"Inconsistency in download from '{url}'.")
+        LOGGER.debug(
             f"Wrote {wrote} bytes out of {content_length - position}."
         )
 
@@ -374,45 +266,18 @@ def download(url, download_dir='', download_file=None, download_path=None,
         download_checksum = md5sum(download_path)
         if download_checksum != checksum:
             success = False
-            log.warning("Invalid checksum.")
-            log.debug(
+            LOGGER.warning("Invalid checksum.")
+            LOGGER.debug(
                 f"md5sum({download_file}) = {download_checksum} != {checksum})"
             )
 
     if success:
-        log.info(f"Successfully downloaded '{download_file}' from '{url}'.")
+        LOGGER.info(f"Successfully downloaded '{download_file}' from '{url}'.")
         return download_path
     else:
-        log.info(
+        LOGGER.info(
             f"An error occurred in downloading '{download_file}' from '{url}'."
         )
         return False
-
-###############################################################################
-
-
-def md5sum(file, block_size=4096):
-    """Calculate the md5sum for a file.
-
-    Parameters
-    ----------
-    file : str
-        Filename.
-    block_size : int
-        Block size to use when reading.
-
-    Returns
-    -------
-    checksum : str
-        The hexadecimal md5 checksum of the file.
-    """
-    md5 = hashlib.md5()
-    with open(file, "rb") as f:
-        while True:
-            data = f.read(block_size)
-            if not data:
-                break
-            md5.update(data)
-    return md5.hexdigest()
 
 ###############################################################################
