@@ -21,10 +21,12 @@ setup(
     author_email='hrishikeshrt@linuxmail.org',
     python_requires='>=3.6',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Natural Language :: English',
+        'Topic :: Internet',
+        'Topic :: Utilities',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
@@ -33,7 +35,7 @@ setup(
     description="Python package to download files",
     entry_points={
         'console_scripts': [
-            'requests_downloader=requests_downloader.cli:main',
+            'smart-dl=requests_downloader.cli:main',
         ],
     },
     install_requires=requirements,
