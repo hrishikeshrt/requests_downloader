@@ -10,7 +10,7 @@ Python package to download files
 
 __author__ = """Hrishikesh Terdalkar"""
 __email__ = 'hrishikeshrt@linuxmail.org'
-__version__ = '0.2.3'
+__version__ = '0.3.0'
 
 ###############################################################################
 
