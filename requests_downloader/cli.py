@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Command Line Interface
+Command Line Interface for requests_downloader
 """
 
 ###############################################################################
@@ -16,7 +16,8 @@ from requests_downloader import downloader
 ###############################################################################
 
 logger = logging.getLogger()
-logger.addHandler(logging.StreamHandler())
+if not logger.hasHandlers():
+    logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.WARNING)
 
 ###############################################################################
