@@ -1,8 +1,7 @@
 #!/usr/bin/env python
+"""Tests for `requests_downloader.handlers`."""
 
-"""Tests for `requests_downloader` package."""
-
-from requests_downloader import downloader
+from requests_downloader.handlers import handle_url
 
 
 def test_handle_url():
@@ -24,8 +23,4 @@ def test_handle_url():
         ],
     }
     for url, url_result in url_result.items():
-        assert downloader.handle_url(url) == (url_result, 0)
-
-
-def test_download():
-    assert True
+        assert handle_url(url) == (url_result, 0)
