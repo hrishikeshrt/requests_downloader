@@ -24,21 +24,35 @@ LOGGER = logging.getLogger(__name__)
 ###############################################################################
 
 HEADERS = {
-    'Range': 'bytes=0-',
-    'User-Agent': ('Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) '
-                   'Gecko/20100101 Firefox/89.0'),
-    'Upgrade-Insecure-Requests': '1',
-    'Connection': 'keep-alive',
-    'Keep-Alive': 'timeout=10, max=100'
+    "Range": "bytes=0-",
+    "User-Agent": (
+        "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) "
+        "Gecko/20100101 Firefox/89.0"
+    ),
+    "Upgrade-Insecure-Requests": "1",
+    "Connection": "keep-alive",
+    "Keep-Alive": "timeout=10, max=100",
 }
 
 ###############################################################################
 
 
-def download(url, download_dir='', download_file=None, download_path=None,
-             headers={}, session=None, block_size=1024, timeout=60,
-             resume=True, show_progress=True, show_progress_desc=True,
-             checksum=None, smart=True, url_handler=None):
+def download(
+    url,
+    download_dir="",
+    download_file=None,
+    download_path=None,
+    headers={},
+    session=None,
+    block_size=1024,
+    timeout=60,
+    resume=True,
+    show_progress=True,
+    show_progress_desc=True,
+    checksum=None,
+    smart=True,
+    url_handler=None,
+):
     """
     Download a file
 
@@ -121,28 +135,26 @@ def download(url, download_dir='', download_file=None, download_path=None,
     LOGGER.debug(session.headers)
     r = session.head(url, headers=headers, timeout=timeout)
 
-    resume_supported = r.headers.get('accept-ranges') == 'bytes'
-    file_mode = 'ab' if resume_supported else 'wb'
+    resume_supported = r.headers.get("accept-ranges") == "bytes"
+    file_mode = "ab" if resume_supported else "wb"
     LOGGER.debug(f"Resume Supported: {resume_supported}")
 
-    r = session.get(
-        url, headers=headers, timeout=timeout, stream=True
-    )
+    r = session.get(url, headers=headers, timeout=timeout, stream=True)
     LOGGER.debug(r.headers)
 
-    content_length = int(r.headers.get('content-length', 0))
+    content_length = int(r.headers.get("content-length", 0))
     LOGGER.debug(f"Content-Length: {content_length}")
 
-    content_range = r.headers.get('content-range', '')
-    _content_range_part = content_range.split('/')[-1].strip()
+    content_range = r.headers.get("content-range", "")
+    _content_range_part = content_range.split("/")[-1].strip()
     LOGGER.debug(f"Content-Range: {content_range}")
 
     if content_length == 0 and _content_range_part:
         content_length = int(_content_range_part)
         LOGGER.debug(f"Content-Length (from Range): {content_length}")
 
-    content_type = r.headers.get('content-type')
-    html_content = (content_type == 'text/html; charset=utf-8')
+    content_type = r.headers.get("content-type")
+    html_content = content_type == "text/html; charset=utf-8"
     LOGGER.debug(f"Content-Type: {content_type}")
     LOGGER.debug(f"HTML Content: {html_content}")
 
@@ -154,30 +166,28 @@ def download(url, download_dir='', download_file=None, download_path=None,
     extension_guess = mimetypes.guess_extension(content_type)
     LOGGER.debug(f"Extension Guess: {extension_guess}")
 
-    visible_name = r.url.split('/')[-1]
+    visible_name = r.url.split("/")[-1]
     if extension_guess and not visible_name.endswith(extension_guess):
-        visible_name += f'.{extension_guess}'
-    visible_name = unquote(visible_name, 'UTF-8')
+        visible_name += f".{extension_guess}"
+    visible_name = unquote(visible_name, "UTF-8")
     LOGGER.debug(f"Visible Name: {visible_name}")
 
     provided_name = None
-    cd = r.headers.get('content-disposition', None)
+    cd = r.headers.get("content-disposition", None)
     LOGGER.debug(f"Content-Disposition: {cd}")
     if cd is not None:
         cd_fields = {}
-        for part in cd.split(';'):
-            _kv = part.split('=')
-            if '=' in part:
-                _k = _kv[0].strip(' \t\n"\'')
-                _v = _kv[1].strip(' \t\n"\'')
+        for part in cd.split(";"):
+            _kv = part.split("=")
+            if "=" in part:
+                _k = _kv[0].strip(" \t\n\"'")
+                _v = _kv[1].strip(" \t\n\"'")
                 cd_fields[_k] = _v
 
         LOGGER.debug(cd_fields)
-        provided_names = [
-            v for k, v in cd_fields.items() if k == 'filename'
-        ]
+        provided_names = [v for k, v in cd_fields.items() if k == "filename"]
         provided_encoded_names = [
-            v for k, v in cd_fields.items() if k == 'filename*'
+            v for k, v in cd_fields.items() if k == "filename*"
         ]
 
         # provided_names = re.findall('filename="(.+)"', cd)
@@ -208,11 +218,10 @@ def download(url, download_dir='', download_file=None, download_path=None,
         download_file = os.path.basename(download_path)
 
     LOGGER.info(
-        f"Downloading '{download_file}' ... "
-        f"({content_length} bytes)"
+        f"Downloading '{download_file}' ... " f"({content_length} bytes)"
     )
 
-    with open(download_path, 'ab') as f:
+    with open(download_path, "ab") as f:
         position = f.tell()
         LOGGER.debug(f"Current Position: {position}")
         if position and position == content_length:
@@ -224,14 +233,12 @@ def download(url, download_dir='', download_file=None, download_path=None,
         position = f.tell()
         if resume and resume_supported:
             if position:
-                headers['Range'] = f'bytes={position}-'
+                headers["Range"] = f"bytes={position}-"
                 LOGGER.info(
                     f"Resuming '{download_file}' from {position} bytes"
                 )
 
-            r = session.get(
-                url, headers=headers, timeout=timeout, stream=True
-            )
+            r = session.get(url, headers=headers, timeout=timeout, stream=True)
 
         if show_progress_desc:
             if show_progress_desc is True:
@@ -244,7 +251,7 @@ def download(url, download_dir='', download_file=None, download_path=None,
             initial=position,
             desc=desc,
             total=content_length,
-            unit='B',
+            unit="B",
             unit_scale=True,
             disable=not show_progress,
         ) as t:
@@ -291,5 +298,6 @@ def download(url, download_dir='', download_file=None, download_path=None,
             f"An error occurred in downloading '{download_file}' from '{url}'."
         )
         return False
+
 
 ###############################################################################
