@@ -37,12 +37,10 @@ HEADERS = {
 
 def download(url, download_dir='', download_file=None, download_path=None,
              headers={}, session=None, block_size=1024, timeout=60,
-             resume=True, show_progress=True, checksum=None, smart=True,
-             url_handler=None, verbose=False, debug=False):
+             resume=True, show_progress=True, show_progress_desc=True,
+             checksum=None, smart=True, url_handler=None):
     """
     Download a file
-
-    Using 'requests' module
 
     Parameters
     ----------
@@ -66,9 +64,9 @@ def download(url, download_dir='', download_file=None, download_path=None,
         Note:
             * These headers are merged with a default set of headers.
             * In case of a conflict the user-provided values are used.
-            * This behaviour is inherited from requests.Session()
+            * This behaviour is inherited from `requests.Session()`
     session : object, optional
-        A valid requests.Session object.
+        A valid `requests.Session` object.
         This is useful when download url requires authentication.
         In such a case, authentication can be handled independently in session.
         The default is None.
@@ -83,6 +81,12 @@ def download(url, download_dir='', download_file=None, download_path=None,
         The default is True.
     show_progress : bool, optional
         Show progressbar.
+        The default is True.
+    show_progress_desc : str or bool, optional
+        Show the description to the left of progressbar.
+        If False or None, no description is shown.
+        If True, the name of file being downloaded is shown.
+        Otherwise, the `str()` of the provided value is shown.
         The default is True.
     checksum : str, optional
         Value of md5 checksum of the file to be downloaded.
@@ -229,12 +233,20 @@ def download(url, download_dir='', download_file=None, download_path=None,
                 url, headers=headers, timeout=timeout, stream=True
             )
 
+        if show_progress_desc:
+            if show_progress_desc is True:
+                desc = download_file
+            else:
+                desc = str(show_progress_desc)
+        else:
+            desc = None
         with tqdm(
             initial=position,
+            desc=desc,
             total=content_length,
             unit='B',
             unit_scale=True,
-            disable=not show_progress
+            disable=not show_progress,
         ) as t:
             for data in r.iter_content(block_size):
                 wrote += f.write(data)
