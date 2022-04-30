@@ -1,6 +1,14 @@
 History
 =======
 
+0.4.0 (2022-04-28)
+------------------
+
+* Option to show filename to the left of progressbar
+* Modularize code
+* Style: Black
+* Fix bugs
+
 0.3.0 (2022-02-11)
 ------------------
 
