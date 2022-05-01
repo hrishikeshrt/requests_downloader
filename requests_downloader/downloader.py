@@ -49,6 +49,7 @@ def download(
     resume=True,
     show_progress=True,
     show_progress_desc=True,
+    max_desc_length=35,
     checksum=None,
     smart=True,
     url_handler=None,
@@ -102,6 +103,10 @@ def download(
         If True, the name of file being downloaded is shown.
         Otherwise, the `str()` of the provided value is shown.
         The default is True.
+    max_desc_length : int, optional
+        If length of the description is more, abbreviate it by showing the
+        first and last parts connected by three dots.
+        The default is 35.
     checksum : str, optional
         Value of md5 checksum of the file to be downloaded.
         If provided, the downloaded file will be verified using the checksum.
@@ -245,6 +250,10 @@ def download(
                 desc = download_file
             else:
                 desc = str(show_progress_desc)
+            if len(desc) > max_desc_length:
+                prefix_length = (max_desc_length - 3) // 2
+                suffix_length = prefix_length
+                desc = f"{desc[:prefix_length]}...{desc[-suffix_length:]}"
         else:
             desc = None
         with tqdm(
