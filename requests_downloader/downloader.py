@@ -12,7 +12,7 @@ import mimetypes
 from urllib.parse import unquote
 
 import requests
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from .handlers import handle_url
 from .utils import md5sum
